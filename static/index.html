@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#000',
+                        secondary: '#e9ecef',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col py-[24px]">
+    <!-- Preload images -->
+    <link rel="preload" as="image" href="/static/images/user.png">
+    <link rel="preload" as="image" href="/static/images/gemini.png">
+    
+    <div class="max-w-[600px] w-full mx-auto flex-1 flex flex-col relative">
+        <div id="chat-messages" class="flex-1 overflow-y-auto space-y-6 p-4 pb-32">
+            <!-- Messages will be added here -->
+        </div>
+        <div class="fixed bottom-0 left-0 right-0 bg-gray-100 pb-[12px] ">
+            <div class="max-w-[600px] mx-auto p-4">
+            <div class="relative flex items-center">
+                <input type="text" id="message-input" 
+                       class="w-full pl-4 pr-24 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" 
+                       placeholder="Message to Gemini " />
+                <button id="send-button" 
+                        class="absolute right-2 px-6 py-2 bg-primary text-white rounded-full hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    Send
+                </button>
+            </div>
+            <div class="text-[12px] pt-[12px] text-[#7f7f7f] text-center">Gemini can make mistakes. Consider checking important information.</div>
+        </div>
+    </div>
+
+    <script>
+        let messageInput, sendButton, chatMessages;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            messageInput = document.getElementById('message-input');
+            sendButton = document.getElementById('send-button');
+            chatMessages = document.getElementById('chat-messages');
+
+            // Bind event listeners
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+        function addMessage(message, isUser) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('flex', 'items-start', 'gap-3');
+            if (isUser) {
+                messageElement.classList.add('flex-row-reverse');
+            }
+
+            // Create avatar element
+            const avatarElement = document.createElement('img');
+            avatarElement.classList.add(
+                'w-8',
+                'h-8',
+                'rounded-full',
+                'object-cover'
+            );
+            avatarElement.src = isUser ? '/static/images/user.png' : '/static/images/gemini.png';
+            avatarElement.alt = isUser ? 'User Avatar' : 'AI Avatar';
+
+            const contentElement = document.createElement('div');
+            const classNames = [
+                'max-w-[83%]',
+                'rounded-2xl',
+                'px-2',
+                'py-2',
+                isUser ? 'bg-[#fff]' : 'bg-[#fff]',
+                isUser ? 'text-gray-800' : 'text-gray-800'
+            ];
+            classNames.forEach(className => contentElement.classList.add(className));
+
+            if (typeof message === 'object' && message.type === 'weather') {
+                // Render weather card
+                const weatherData = message.data;
+                contentElement.innerHTML = `
+                    <div class="weather-card bg-gradient-to-r from-blue-400 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold">${weatherData.city}</h2>
+                            <div class="text-4xl">${weatherData.icon}</div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="text-4xl font-bold">${weatherData.temperature}°C</div>
+                            <div class="text-lg capitalize">${weatherData.description}</div>
+                            <div class="text-sm opacity-90">💧 Humidity: ${weatherData.humidity}%</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Use marked to render Markdown text
+                const content = typeof message === 'string' ? message : (message.content || message.response || JSON.stringify(message));
+                contentElement.innerHTML = marked.parse(content);
+            }
+
+            messageElement.appendChild(avatarElement);
+            messageElement.appendChild(contentElement);
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Disable input and button to prevent duplicate sending
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            try {
+                addMessage(message, true);
+                messageInput.value = '';
+
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+                addMessage(data);
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage({ response: 'Sorry, an error occurred. Please try again.' });
+            } finally {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>

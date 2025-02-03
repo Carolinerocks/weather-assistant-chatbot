@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  weather-bot:
+    build: .
+    environment:
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: python main.py
